@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>番茄时钟</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #f6f0ed;
+    user-select: none;
+  }
+  .container {
+    text-align: center;
+    background: #fff;
+    border-radius: 24px;
+    padding: 48px 44px;
+    box-shadow: 0 4px 24px rgba(118, 108, 101, 0.10), 0 1px 3px rgba(118, 108, 101, 0.06);
+  }
+  .title {
+    color: #c75b49;
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+  }
+  .subtitle {
+    color: #b8a9a0;
+    font-size: 13px;
+    margin-bottom: 36px;
+  }
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 36px;
+    background: #f6f0ed;
+    border-radius: 12px;
+    padding: 4px;
+  }
+  .tab {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: #b8a9a0;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: all 0.25s;
+    white-space: nowrap;
+  }
+  .tab.active {
+    background: #c75b49;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(199, 91, 73, 0.25);
+  }
+  .tab:hover:not(.active) {
+    color: #766c65;
+    background: #ebe3dd;
+  }
+  .timer-wrapper {
+    position: relative;
+    width: 260px;
+    height: 260px;
+    margin: 0 auto 36px;
+  }
+  .timer-ring {
+    transform: rotate(-90deg);
+    width: 260px;
+    height: 260px;
+  }
+  .ring-bg {
+    fill: none;
+    stroke: #f6f0ed;
+    stroke-width: 8;
+  }
+  .ring-progress {
+    fill: none;
+    stroke: #c75b49;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear;
+  }
+  .ring-progress.break { stroke: #c75b49; }
+  .time-display {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 58px;
+    font-weight: 600;
+    color: #5c534c;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 2px;
+  }
+  .session-label {
+    color: #b8a9a0;
+    font-size: 13px;
+    margin-top: -24px;
+    margin-bottom: 32px;
+  }
+  .buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 28px;
+  }
+  .btn {
+    padding: 12px 32px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-start {
+    background: #c75b49;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(199, 91, 73, 0.25);
+  }
+  .btn-start:hover { background: #b44d3d; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(199, 91, 73, 0.35); }
+  .btn-start:active { transform: translateY(0); }
+  .btn-reset {
+    background: #f6f0ed;
+    color: #766c65;
+  }
+  .btn-reset:hover { background: #ebe3dd; }
+  .btn-reset:active { transform: translateY(0); }
+  .stats {
+    color: #b8a9a0;
+    font-size: 13px;
+  }
+  .stats span {
+    color: #c75b49;
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="title">番茄时钟</div>
+  <div class="subtitle">专注工作，高效生活</div>
+
+  <div class="tabs">
+    <button class="tab active" data-mode="work" data-min="25">工作 25 分钟</button>
+    <button class="tab" data-mode="short" data-min="5">短休息 5 分钟</button>
+    <button class="tab" data-mode="long" data-min="15">长休息 15 分钟</button>
+  </div>
+
+  <div class="timer-wrapper">
+    <svg class="timer-ring" viewBox="0 0 260 260">
+      <circle class="ring-bg" cx="130" cy="130" r="120"/>
+      <circle class="ring-progress" id="progressRing" cx="130" cy="130" r="120"
+        stroke-dasharray="753.98" stroke-dashoffset="0"/>
+    </svg>
+    <div class="time-display" id="timeDisplay">25:00</div>
+  </div>
+
+  <div class="session-label" id="sessionLabel">第 1 个番茄</div>
+
+  <div class="buttons">
+    <button class="btn btn-start" id="btnStart">开始</button>
+    <button class="btn btn-reset" id="btnReset">重置</button>
+  </div>
+
+  <div class="stats">
+    已完成 <span id="pomodoroCount">0</span> 个番茄
+  </div>
+</div>
+
+<script>
+  const MODES = {
+    work: { minutes: 25, label: '工作' },
+    short: { minutes: 5, label: '短休息' },
+    long: { minutes: 15, label: '长休息' }
+  };
+
+  const CIRCUMFERENCE = 2 * Math.PI * 120;
+
+  let currentMode = 'work';
+  let totalSeconds = MODES.work.minutes * 60;
+  let remaining = totalSeconds;
+  let countdown = null;
+  let pomodoroCount = 0;
+
+  const $timeDisplay = document.getElementById('timeDisplay');
+  const $progressRing = document.getElementById('progressRing');
+  const $btnStart = document.getElementById('btnStart');
+  const $sessionLabel = document.getElementById('sessionLabel');
+  const $pomodoroCount = document.getElementById('pomodoroCount');
+
+  $progressRing.style.strokeDasharray = CIRCUMFERENCE;
+  $progressRing.style.strokeDashoffset = '0';
+
+  function fmt(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function setMode(mode) {
+    currentMode = mode;
+    totalSeconds = MODES[mode].minutes * 60;
+    remaining = totalSeconds;
+    updateDisplay();
+  }
+
+  function updateDisplay() {
+    $timeDisplay.textContent = fmt(remaining);
+    const progress = (totalSeconds - remaining) / totalSeconds;
+    $progressRing.style.strokeDashoffset = CIRCUMFERENCE * progress;
+
+    if (currentMode === 'work') {
+      $sessionLabel.textContent = '第 ' + (pomodoroCount + 1) + ' 个番茄';
+    } else {
+      $sessionLabel.textContent = MODES[currentMode].label;
+    }
+  }
+
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (countdown) {
+        clearInterval(countdown);
+        countdown = null;
+        $btnStart.textContent = '开始';
+      }
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      setMode(tab.dataset.mode);
+    });
+  });
+
+  $btnStart.addEventListener('click', () => {
+    if (countdown) {
+      clearInterval(countdown);
+      countdown = null;
+      $btnStart.textContent = '继续';
+      return;
+    }
+
+    $btnStart.textContent = '暂停';
+    countdown = setInterval(() => {
+      remaining--;
+      updateDisplay();
+
+      if (remaining <= 0) {
+        clearInterval(countdown);
+        countdown = null;
+        $btnStart.textContent = '开始';
+
+        if (currentMode === 'work') {
+          pomodoroCount++;
+          $pomodoroCount.textContent = pomodoroCount;
+        }
+
+        notify();
+
+        const next = currentMode === 'work'
+          ? (pomodoroCount % 4 === 0 ? 'long' : 'short')
+          : 'work';
+        switchTab(next);
+        setMode(next);
+      }
+    }, 1000);
+  });
+
+  document.getElementById('btnReset').addEventListener('click', () => {
+    if (countdown) {
+      clearInterval(countdown);
+      countdown = null;
+    }
+    $btnStart.textContent = '开始';
+    remaining = totalSeconds;
+    updateDisplay();
+  });
+
+  function switchTab(mode) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    const target = document.querySelector(`.tab[data-mode="${mode}"]`);
+    if (target) target.classList.add('active');
+  }
+
+  function notify() {
+    const title = currentMode === 'work' ? '时间到！该休息了' : '休息结束，开始工作吧！';
+    if (Notification.permission === 'granted') {
+      new Notification(title);
+    } else if (Notification.permission === 'default') {
+      Notification.requestPermission().then(p => {
+        if (p === 'granted') new Notification(title);
+      });
+    }
+    try {
+      const beep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4CAf39/f4B/f3+AgH9/f3+Af39/gIB/f39/gH9/f4B/f3+AgH9/f3+Af39/');
+      beep.volume = 0.3;
+      beep.play().catch(() => {});
+    } catch(e) {}
+  }
+
+  if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+</script>
+</body>
+</html>
